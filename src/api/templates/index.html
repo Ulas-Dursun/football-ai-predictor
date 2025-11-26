@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futbol Analiz Pro - AI Tahmin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            /* Tema Renkleri */
+            --bg-body: #0b1121;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --primary: #6366f1;
+            --accent-purple: #c084fc;
+
+            /* Risk Renkleri (5 Skala) */
+            --risk-purple: #a855f7; /* Çok Yüksek */
+            --risk-green: #22c55e;  /* Yüksek */
+            --risk-yellow: #eab308; /* Orta */
+            --risk-orange: #f97316; /* Riskli */
+            --risk-red: #ef4444;    /* Çok Riskli */
+
+            /* Form Renkleri */
+            --win: #22c55e; --draw: #94a3b8; --loss: #ef4444;
+
+            /* Gölgeler */
+            --shadow-soft: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 20px; min-height: 100vh; }
+        .container { max-width: 1300px; margin: 0 auto; }
+
+        /* Header */
+        header { text-align: center; margin-bottom: 30px; animation: fadeIn 0.8s ease-out; }
+        .logo-badge { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; padding: 5px 12px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(99, 102, 241, 0.3); }
+        h1 { margin-top: 10px; font-size: 2.2rem; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        /* Layout */
+        .dashboard-grid { display: grid; grid-template-columns: 2.5fr 1.2fr; gap: 20px; align-items: start; }
+        .glass-card { background: var(--bg-card); backdrop-filter: blur(16px); border: 1px solid var(--border-glass); border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-soft); }
+
+        /* Form */
+        .filter-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+        label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
+        select { width: 100%; background: rgba(15, 23, 42, 0.6); color: white; padding: 12px; border-radius: 10px; border: 1px solid var(--border-glass); cursor: pointer; }
+        .analyze-btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 10px; cursor: pointer; width: 100%; font-weight: 600; transition: 0.2s; box-shadow: var(--shadow-glow); }
+        .analyze-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+
+        /* Form Görselleri (Kutucuklar) */
+        .form-dots { display: flex; gap: 4px; margin-top: 6px; }
+        .form-dot { width: 12px; height: 6px; border-radius: 2px; }
+        .f-win { background: var(--win); } .f-draw { background: var(--draw); } .f-loss { background: var(--loss); }
+
+        /* Tablo */
+        .prediction-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+        .prediction-table th { text-align: left; color: var(--text-muted); font-size: 0.8rem; padding: 0 10px; }
+        .prediction-table td { background: rgba(255, 255, 255, 0.03); padding: 12px; font-size: 0.9rem; }
+        .prediction-table tr td:first-child { border-radius: 8px 0 0 8px; }
+        .prediction-table tr td:last-child { border-radius: 0 8px 8px 0; }
+
+        /* Progress Bars & Colors */
+        .prob-wrapper { display: flex; align-items: center; gap: 10px; }
+        .progress-bg { flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 99px; overflow: hidden; }
+        .progress-fill { height: 100%; transition: width 1s ease; }
+
+        .c-purple { color: var(--risk-purple); } .bg-purple { background: var(--risk-purple); }
+        .c-green { color: var(--risk-green); } .bg-green { background: var(--risk-green); }
+        .c-yellow { color: var(--risk-yellow); } .bg-yellow { background: var(--risk-yellow); }
+        .c-orange { color: var(--risk-orange); } .bg-orange { background: var(--risk-orange); }
+        .c-red { color: var(--risk-red); } .bg-red { background: var(--risk-red); }
+
+        /* Kupon (Sticky) */
+        .coupon-card { position: sticky; top: 20px; border: 1px solid var(--primary); box-shadow: 0 0 20px rgba(99, 102, 241, 0.15); }
+        .coupon-item { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .coupon-remove { color: var(--risk-red); cursor: pointer; margin-left: 10px; opacity: 0.7; transition: 0.2s; }
+        .coupon-remove:hover { opacity: 1; transform: scale(1.1); }
+        .coupon-footer { border-top: 1px solid var(--border-glass); padding-top: 10px; margin-top: 10px; }
+        .coupon-total { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+        .coupon-risk { text-align: center; padding: 5px; border-radius: 6px; margin-top: 10px; font-size: 0.85rem; font-weight: 600; color: #000; }
+
+        .add-btn { background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; transition: 0.2s; }
+        .add-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(99, 102, 241, 0.1); }
+
+        /* Legend & Spinner */
+        .legend-list { display: flex; flex-direction: column; gap: 10px; }
+        .legend-item { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        .spinner { display: none; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } .coupon-card { position: relative; top: 0; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="logo-badge">v2.3 Elite</div>
+        <h1>Futbol Analiz Pro</h1>
+        <div class="subtitle">Yapay Zeka Destekli Bahis & Kupon Asistanı</div>
+    </header>
+
+    {% if error %}
+        <div class="glass-card" style="border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #fca5a5;">
+            <i class="fas fa-exclamation-circle"></i> {{ error }}
+        </div>
+    {% endif %}
+
+    <div class="dashboard-grid">
+        <div>
+            <div class="glass-card">
+                <form method="post" class="filter-form" id="analysisForm">
+                    <div>
+                        <label>Lig</label>
+                        <select id="league" name="league">
+                            {% for lg in leagues %}
+                                <option value="{{ lg }}" {% if lg == selected_league %}selected{% endif %}>{{ lg }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Ev Sahibi</label>
+                        <select id="home_team" name="home_team">
+                            {% for t in teams %}
+                                <option value="{{ t }}" {% if t == selected_home %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Deplasman</label>
+                        <select id="away_team" name="away_team">
+                            {% for t in teams %}
+                                <option value="{{ t }}" {% if t == selected_away %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="align-self: end;">
+                        <button type="submit" class="analyze-btn" id="submitBtn">
+                            <div class="spinner" id="loadingSpinner"></div>
+                            <span id="btnText">Analiz Et</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {% if predictions %}
+            <div class="glass-card" style="animation: fadeIn 0.5s ease-out;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--border-glass);">
+                    <div style="text-align: left;">
+                        <div style="font-weight: 700; font-size: 1.2rem;">{{ home_team }}</div>
+                        <div class="form-dots">
+                            {% for p in home_form %}
+                                <div class="form-dot {% if p==3 %}f-win{% elif p==1 %}f-draw{% else %}f-loss{% endif %}"></div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div style="color: var(--text-muted); font-weight: 700; font-size: 1.2rem;">VS</div>
+
+                    <div style="text-align: right;">
+                        <div style="font-weight: 700; font-size: 1.2rem;">{{ away_team }}</div>
+                        <div class="form-dots" style="justify-content: flex-end;">
+                            {% for p in away_form %}
+                                <div class="form-dot {% if p==3 %}f-win{% elif p==1 %}f-draw{% else %}f-loss{% endif %}"></div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <table class="prediction-table">
+                    <thead>
+                        <tr>
+                            <th width="30%">Piyasa</th>
+                            <th width="40%">Olasılık</th>
+                            <th width="15%">Oran</th>
+                            <th width="15%">Kupon</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for p in predictions %}
+                        {# Çeviriler #}
+                        {% set label = p.market %}
+                        {% if p.market == "Full Time 1" %}{% set label = "Maç Sonucu 1" %}
+                        {% elif p.market == "Full Time X" %}{% set label = "Maç Sonucu X" %}
+                        {% elif p.market == "Full Time 2" %}{% set label = "Maç Sonucu 2" %}
+                        {% elif p.market == "Double Chance 1X" %}{% set label = "ÇŞ 1X" %}
+                        {% elif p.market == "Double Chance X2" %}{% set label = "ÇŞ X2" %}
+                        {% elif p.market == "Double Chance 12" %}{% set label = "ÇŞ 12" %}
+                        {% elif p.market == "Home DNB" %}{% set label = "Bİ Ev" %}
+                        {% elif p.market == "Away DNB" %}{% set label = "Bİ Dep" %}
+                        {% elif p.market == "BTTS Yes" %}{% set label = "KG Var" %}
+                        {% elif p.market == "BTTS No" %}{% set label = "KG Yok" %}
+                        {% elif p.market == "Over 2.5" %}{% set label = "2.5 Üst" %}
+                        {% elif p.market == "Under 2.5" %}{% set label = "2.5 Alt" %}
+                        {% elif p.market == "Over 3.5" %}{% set label = "3.5 Üst" %}
+                        {% elif p.market == "Under 3.5" %}{% set label = "3.5 Alt" %}
+                        {% elif p.market == "1st Half Over 1.5" %}{% set label = "İY 1.5 Üst" %}
+                        {% elif p.market == "1st Half Under 1.5" %}{% set label = "İY 1.5 Alt" %}
+                        {% elif p.market == "Corners Over 9.5" %}{% set label = "9.5 Korner Üst" %}
+                        {% elif p.market == "Corners Under 9.5" %}{% set label = "9.5 Korner Alt" %}
+                        {% endif %}
+
+                        {# Renkler #}
+                        {% set color_cls = "red" %}
+                        {% if p.probability_percent >= 75 %}{% set color_cls = "purple" %}
+                        {% elif p.probability_percent >= 60 %}{% set color_cls = "green" %}
+                        {% elif p.probability_percent >= 50 %}{% set color_cls = "yellow" %}
+                        {% elif p.probability_percent >= 35 %}{% set color_cls = "orange" %}
+                        {% endif %}
+
+                        <tr {% if p.probability == max_prob %}style="background: rgba(168, 85, 247, 0.08); border-left: 2px solid var(--risk-purple);"{% endif %}>
+                            <td>{{ label }}</td>
+                            <td>
+                                <div class="prob-wrapper">
+                                    <div class="progress-bg"><div class="progress-fill bg-{{ color_cls }}" style="width: {{ p.probability_percent }}%"></div></div>
+                                    <div class="prob-value c-{{ color_cls }}">{{ "%.1f"|format(p.probability_percent) }}%</div>
+                                </div>
+                            </td>
+                            <td><span style="font-family: monospace;">{{ "%.2f"|format(p.fair_odds) }}</span></td>
+                            <td style="text-align: right;">
+                                <button class="add-btn" onclick="addToCoupon('{{ home_team }} - {{ away_team }}', '{{ label }}', {{ p.fair_odds }})">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-glass);">
+                    <h4 style="font-size: 0.9rem; color: var(--primary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em; display:flex; align-items:center; gap:8px;">
+                        <i class="fas fa-balance-scale"></i> Benzer Güçteki Rakiplerle Maçlar
+                    </h4>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 20px;">
+                        * Bu takımların bugünkü rakibine denk güçteki takımlarla oynadığı son maçlar filtrelenmiştir.
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px;">
+                        <div>
+                            <div style="font-size:0.8rem; font-weight:700; color:var(--text-main); margin-bottom:10px;">{{ home_team }}</div>
+                            {% if home_history %}
+                                {% for m in home_history %}
+                                <div style="display: flex; justify-content: space-between; align-items:center; font-size: 0.75rem; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; margin-bottom: 5px; border-left: 3px solid {% if m.result == 'W' %}var(--win){% elif m.result == 'D' %}var(--draw){% else %}var(--loss){% endif %};">
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color: var(--text-muted);">{{ m.opponent }}</span>
+                                        {% if m.opp_strength %}
+                                            <span style="font-size:0.65rem; color: var(--accent-purple);">Güç: {{ "%.1f"|format(m.opp_strength) }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <span style="font-weight: 700; color: #fff; font-size:0.9rem;">{{ m.score }}</span>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div style="font-size:0.7rem; color:var(--text-muted); font-style:italic;">Benzer rakip verisi bulunamadı.</div>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <div style="font-size:0.8rem; font-weight:700; color:var(--text-main); margin-bottom:10px; text-align:right;">{{ away_team }}</div>
+                            {% if away_history %}
+                                {% for m in away_history %}
+                                <div style="display: flex; justify-content: space-between; align-items:center; font-size: 0.75rem; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; margin-bottom: 5px; border-right: 3px solid {% if m.result == 'W' %}var(--win){% elif m.result == 'D' %}var(--draw){% else %}var(--loss){% endif %};">
+                                    <span style="font-weight: 700; color: #fff; font-size:0.9rem;">{{ m.score }}</span>
+                                    <div style="display:flex; flex-direction:column; text-align:right;">
+                                        <span style="color: var(--text-muted);">{{ m.opponent }}</span>
+                                        {% if m.opp_strength %}
+                                            <span style="font-size:0.65rem; color: var(--accent-purple);">Güç: {{ "%.1f"|format(m.opp_strength) }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div style="font-size:0.7rem; color:var(--text-muted); font-style:italic; text-align:right;">Benzer rakip verisi bulunamadı.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="sidebar-section">
+
+            <div class="glass-card coupon-card">
+                <h3 style="margin-top:0; font-size:1rem; color: var(--primary); display:flex; justify-content:space-between; align-items:center;">
+                    <span><i class="fas fa-ticket-alt"></i> Kuponum</span>
+                    <span style="font-size:0.8rem; cursor:pointer; opacity:0.8;" onclick="clearCoupon()"><i class="fas fa-trash"></i> Temizle</span>
+                </h3>
+
+                <div id="couponItems" style="margin-top: 15px; min-height: 50px;">
+                    <div style="text-align:center; color: var(--text-muted); font-size:0.8rem; margin-top:20px;">Henüz maç eklenmedi.</div>
+                </div>
+
+                <div class="coupon-footer" id="couponFooter" style="display:none;">
+                    <div class="coupon-total"><span>Toplam Oran:</span><span id="totalOdds">0.00</span></div>
+                    <div id="riskLabel" class="coupon-risk">Hesaplanıyor...</div>
+                </div>
+            </div>
+
+            {% if suggestions %}
+            <div class="glass-card" style="border-color: var(--primary); box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);">
+                <h3 style="margin-top:0; font-size:1rem; color: var(--primary); display:flex; align-items:center; gap:8px; margin-bottom: 1rem;">
+                    <i class="fas fa-robot"></i> AI Kasa Yönetimi
+                </h3>
+                <div style="display:flex; flex-direction:column;">
+                    {% for sug in suggestions %}
+                        {% set sug_color = "red" %}
+                        {% if sug.risk_class == "light_green" %}{% set sug_color = "green" %}
+                        {% elif sug.risk_class == "yellow" %}{% set sug_color = "yellow" %}
+                        {% endif %}
+
+                        {# Market ismini Türkçe yap #}
+                        {% set m_tr = sug.market_name %}
+                        {% if sug.market_name == "Full Time 1" %}{% set m_tr = "Maç Sonucu 1" %}
+                        {% elif sug.market_name == "Full Time X" %}{% set m_tr = "Maç Sonucu X" %}
+                        {% elif sug.market_name == "Full Time 2" %}{% set m_tr = "Maç Sonucu 2" %}
+                        {% elif sug.market_name == "Double Chance 1X" %}{% set m_tr = "Çifte Şans 1X" %}
+                        {% elif sug.market_name == "Double Chance X2" %}{% set m_tr = "Çifte Şans X2" %}
+                        {% elif sug.market_name == "Double Chance 12" %}{% set m_tr = "Çifte Şans 12" %}
+                        {% elif sug.market_name == "Home DNB" %}{% set m_tr = "Bİ Ev Sahibi" %}
+                        {% elif sug.market_name == "Away DNB" %}{% set m_tr = "Bİ Deplasman" %}
+                        {% elif sug.market_name == "BTTS Yes" %}{% set m_tr = "KG Var" %}
+                        {% elif sug.market_name == "BTTS No" %}{% set m_tr = "KG Yok" %}
+                        {% elif sug.market_name == "Over 2.5" %}{% set m_tr = "2.5 Üst" %}
+                        {% elif sug.market_name == "Under 2.5" %}{% set m_tr = "2.5 Alt" %}
+                        {% elif sug.market_name == "Over 3.5" %}{% set m_tr = "3.5 Üst" %}
+                        {% elif sug.market_name == "Under 3.5" %}{% set m_tr = "3.5 Alt" %}
+                        {% elif sug.market_name == "1st Half Over 1.5" %}{% set m_tr = "İY 1.5 Üst" %}
+                        {% elif sug.market_name == "1st Half Under 1.5" %}{% set m_tr = "İY 1.5 Alt" %}
+                        {% elif sug.market_name == "Corners Over 9.5" %}{% set m_tr = "9.5 Korner Üst" %}
+                        {% elif sug.market_name == "Corners Under 9.5" %}{% set m_tr = "9.5 Korner Alt" %}
+                        {% endif %}
+
+                        <div class="suggestion-card" style="border-left: 4px solid var(--risk-{{ sug_color }});">
+                            <div class="suggestion-header c-{{ sug_color }}">{{ sug.title }}</div>
+                            <div class="suggestion-market">{{ m_tr }}</div>
+                            <div class="suggestion-meta">
+                                <div><span style="color:var(--text-muted)">Oran:</span> <strong>{{ "%.2f"|format(sug.odds) }}</strong></div>
+                                <div><span style="color:var(--text-muted)">Kasa:</span> <strong style="color:#fff">%{{ sug.stake_percent }}</strong></div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="glass-card">
+                <h3 style="margin-top:0; font-size:0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
+                    <i class="fas fa-info-circle"></i> Risk Rehberi
+                </h3>
+                <div class="legend-list">
+                    <div class="legend-item"><span class="dot bg-purple"></span><div style="flex:1; display:flex; justify-content:space-between;"><span>Çok Yüksek</span><span style="color:var(--text-muted)">>= 75%</span></div></div>
+                    <div class="legend-item"><span class="dot bg-green"></span><div style="flex:1; display:flex; justify-content:space-between;"><span>Yüksek</span><span style="color:var(--text-muted)">60% - 75%</span></div></div>
+                    <div class="legend-item"><span class="dot bg-yellow"></span><div style="flex:1; display:flex; justify-content:space-between;"><span>Orta</span><span style="color:var(--text-muted)">50% - 60%</span></div></div>
+                    <div class="legend-item"><span class="dot bg-orange"></span><div style="flex:1; display:flex; justify-content:space-between;"><span>Riskli</span><span style="color:var(--text-muted)">35% - 50%</span></div></div>
+                    <div class="legend-item"><span class="dot bg-red"></span><div style="flex:1; display:flex; justify-content:space-between;"><span>Çok Riskli</span><span style="color:var(--text-muted)">< 35%</span></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let coupon = JSON.parse(localStorage.getItem('myCoupon')) || [];
+
+    function updateCouponUI() {
+        const container = document.getElementById('couponItems');
+        const footer = document.getElementById('couponFooter');
+        const totalOddsEl = document.getElementById('totalOdds');
+        const riskLabel = document.getElementById('riskLabel');
+
+        container.innerHTML = '';
+        if (coupon.length === 0) {
+            container.innerHTML = '<div style="text-align:center; color: #94a3b8; font-size:0.8rem; margin-top:20px;">Henüz maç eklenmedi.</div>';
+            footer.style.display = 'none';
+            return;
+        }
+
+        let totalOdds = 1;
+        coupon.forEach((item, index) => {
+            totalOdds *= item.odds;
+            const div = document.createElement('div');
+            div.className = 'coupon-item';
+            div.innerHTML = `
+                <div style="flex:1;">
+                    <div style="font-size:0.75rem; color:#94a3b8;">${item.match}</div>
+                    <div style="font-weight:600; font-size:0.9rem;">${item.market}</div>
+                </div>
+                <div style="font-weight:700; color:var(--primary);">${item.odds.toFixed(2)}</div>
+                <div class="coupon-remove" onclick="removeFromCoupon(${index})"><i class="fas fa-times"></i></div>
+            `;
+            container.appendChild(div);
+        });
+
+        footer.style.display = 'block';
+        totalOddsEl.innerText = totalOdds.toFixed(2);
+
+        let riskText = ""; let riskBg = "";
+        if (totalOdds < 2.5) { riskText = "DÜŞÜK RİSK (Olası)"; riskBg = "#22c55e"; }
+        else if (totalOdds < 5.0) { riskText = "ORTA RİSK"; riskBg = "#eab308"; }
+        else { riskText = "YÜKSEK RİSK (Sürpriz)"; riskBg = "#ef4444"; }
+
+        riskLabel.innerText = riskText;
+        riskLabel.style.backgroundColor = riskBg;
+    }
+
+    function addToCoupon(match, market, odds) {
+        if(coupon.some(i => i.match === match)) {
+            if(confirm("Bu maça ait bir tahmin zaten var. Değiştirmek ister misin?")) {
+                coupon = coupon.filter(i => i.match !== match);
+            } else { return; }
+        }
+        coupon.push({ match, market, odds });
+        localStorage.setItem('myCoupon', JSON.stringify(coupon));
+        updateCouponUI();
+    }
+
+    function removeFromCoupon(index) {
+        coupon.splice(index, 1);
+        localStorage.setItem('myCoupon', JSON.stringify(coupon));
+        updateCouponUI();
+    }
+
+    function clearCoupon() {
+        if(confirm("Tüm kuponu silmek istediğine emin misin?")) {
+            coupon = [];
+            localStorage.setItem('myCoupon', JSON.stringify(coupon));
+            updateCouponUI();
+        }
+    }
+
+    updateCouponUI();
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const leagueSelect = document.getElementById('league');
+        if (leagueSelect) {
+            leagueSelect.addEventListener('change', function () {
+                window.location.href = '/?league=' + encodeURIComponent(this.value);
+            });
+        }
+        const form = document.getElementById('analysisForm');
+        const btn = document.getElementById('submitBtn');
+        const spinner = document.getElementById('loadingSpinner');
+        const btnText = document.getElementById('btnText');
+        if(form) {
+            form.addEventListener('submit', function() {
+                btn.disabled = true; btn.style.opacity = "0.8";
+                btnText.innerText = "Hesaplanıyor...";
+                spinner.style.display = "block";
+            });
+        }
+    });
+</script>
+</body>
+</html>
